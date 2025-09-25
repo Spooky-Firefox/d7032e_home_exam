@@ -82,6 +82,8 @@ another monolith with 650 lines
 
 ## Design choices for the rust version
 
+
+### Game loop
 ```mermaid
 sequenceDiagram
     participant Game
@@ -113,7 +115,10 @@ sequenceDiagram
 > Consequently, player actions are sent to the server for validation, rather than raw events, to prevent clients from manipulating the game state by submitting fake events.
 
 
-The `State` class serves as an aggregate, individual game boards, and card piles. It provides methods to access and manipulate these underlying components, enabling centralized management of the overall game state and facilitating interactions between different parts of the game logic.
+The `State` class serves as an aggregate for individual game boards, and card piles and other state management. It provides methods to access and manipulate these underlying components, enabling centralized management of the overall game state and facilitating interactions between different parts of the game logic.
+
+
+### Game State
 
 ```mermaid
 classDiagram
@@ -166,4 +171,8 @@ classDiagram
 ```
 
 
-The game board is stored internally as a matrix with a fixed height of 5, while the width is dynamically adjusted to accommodate board expansion. Each tile in the matrix is represented by an object containing the card placed on that tile, along with references to its neighboring tiles. This structure allows a card to evaluate its surroundings, such as determining how many resources it should yield based on adjacent tiles. The matrix can be traversed and queried for possible player actions (e.g., checking if a card provides a "trade 2 wool : 1 any" option). Additionally, each tile can be queried for modifiers that affect gameplay.
+The current implementation of the game board is stored internally as a matrix with a fixed height of 5, while the width is dynamically adjusted to accommodate board expansion. Each tile in the matrix is represented by an object containing the card placed on that tile, along with references to its neighboring tiles. This structure allows a card to evaluate its surroundings, such as determining how many resources it should yield based on adjacent tiles. The matrix can be traversed and queried for possible player actions (e.g., checking if a card provides a "trade 2 wool : 1 any" option). Additionally, each tile can be queried for modifiers that affect gameplay.
+
+### ECS, another possible solution
+
+During the last couple of days i have been studying entity component systems, these data structures seems to be a perfect fit but since i have little experience with them, its not implemented. But the advantages of an ecs would be clear especially for how cards are manged, instead of having an implementation for each card/type of card one could just string together some. One could then implemente a pahse as a system that queris the ECS and modefies it, one could even sotre dice in this system making it easy to extend
