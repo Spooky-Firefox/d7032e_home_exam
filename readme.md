@@ -2,8 +2,9 @@
 
 This is the home exam in the course d7032e at LTU
 
-Disclaimer this project used AI to quickly analyze the given code and for specific tasks such as spellchecking and grammar, smart autocomplete was also used, design decisions are my own.
+As our examiner said, AI is encouraged for this project due to time constraints and industry movement. Therefore, this project is also a learning moment for me, as I have never used AI before to write code—I have only used it for help with grammar and spelling.
 
+<!-- cspell:ignore Vajb -->
 ## Analysis of Mr. VajbCruncher ai generated code
 
 The analysis began by reading the requirements of the home exam.
@@ -54,11 +55,115 @@ This class is 621 lines of code, yet again a monolith with multiple responsibili
 
 - Cards are stored with the player which menans they are duplicated on both server and client, risk for desync as well as risk for cheating as the player have control over their own data.
 
-- as with the player cards the principality is both stored on the client and come with the same problems. more than that the pricepalty is List List card, a more constraind datastructure would be preferd
+- as with the player cards the principality is both stored on the client and come with the same problems. more than that the principality is List List card, a more constrained data structure would be preferred
 
-- SRP, map/principalety should be its own interface
+- SRP, map/principality should be its own interface
 
-- SRP there exist helper method regarding string manipulation, shuld be spererated, our better use an external library for task shush as this, no need to reinvent the wheel
+- SRP there exist helper method regarding string manipulation, should be separated, our better use an external library for task shush as this, no need to reinvent the wheel
 
 - the cellTitle method have an horrible else if. Would prefer that display elements have these as have decorators
 or that the card implements its on display function as a composite pattern
+
+- There exists a `resourceToRegion` function in the player class, and a `REGION_TO_RESOURCE` hashmap in the server class. This is duplicate code; a solution might be to use helper functions or to represent regions as a class.
+
+- some unnecessary function which ads extra layer of abstraction that i feel is unnecessary, the hand var is already public
+
+#### Card.Java
+
+another monolith with 650 lines
+
+- There only exist one card class
+
+- The structure of the data is recursive, a card contains many cards, there is no class for a deck or hand of cards, note only the top card contains other cards
+
+- There exist functions named gs and gi, whit no documentation
+
+- the card class contains a large amount of if else
+
+## Design choices for the rust version
+
+```mermaid
+sequenceDiagram
+    participant Game
+    participant Phase
+    participant EventManager
+    participant DecisionChannel
+    participant State
+    participant Server
+
+    Game->>Phase: startPhase()
+    Note right of Phase: Each phase may loop until completion
+    loop Phase Loop
+        Phase->>EventManager: beginPhase(base_events, pa)
+        EventManager->>DecisionChannel: send_possible_player_actions(&pa[])
+        DecisionChannel->>EventManager: receive_input(pa)
+        EventManager->>Server: state_update(pa)
+        EventManager->>EventManager: process player action
+        EventManager->>State: state_update(events[])
+        EventManager->>Phase: loop (phase continues)
+    end
+        Phase->>Game: next_phase
+```
+
+
+> **Note:**  
+> This diagram does not illustrate how the server manages random events or dice rolls in relation to the rest of the system.  
+> Since clients cannot be trusted to generate fair random numbers, all randomness is handled by the server to ensure game integrity.  
+> This design choice increases coupling between the server and game logic, but is necessary for security.  
+> Consequently, player actions are sent to the server for validation, rather than raw events, to prevent clients from manipulating the game state by submitting fake events.
+
+
+The `State` class serves as an aggregate, individual game boards, and card piles. It provides methods to access and manipulate these underlying components, enabling centralized management of the overall game state and facilitating interactions between different parts of the game logic.
+
+```mermaid
+classDiagram
+    class State {
+        +boards() &[Board]
+        +apply_events([Events])
+        +deck() Pile
+        +discard_pile() Pile
+    }
+
+    class Board {
+        <<trait>>
+        +all_cards() -> &[Card]
+        +placeable_cards(player_hand: &[cards]) -> &[PlayerAction]
+        +player_actions() -> Vec<PlayerAction>
+        +modifiers() -> &[Modifier]
+        +resource(resource_type: ResourceType) -> i32
+        +add_resource(resource_type: ResourceType, amount: i32)
+        +remove_resource(resource_type: ResourceType, amount: i32)
+        +set_resource(resource_type: ResourceType, amount: i32)
+    }
+
+    class Tile {
+        <<trait>>
+        +card() -> &Card
+        +set_card(card: Card)
+        +neighbors() -> &[Tile]
+        +set_neighbors(neighbors: &[Tile])
+        +modifiers() -> &[Modifier]
+        +player_action() -> &[PlayerAction]
+    }
+
+    class Pile {
+        <<trait>>
+        +cards() -> Card[]
+        +add_top_card(card: Card)
+        +add_from_bottom(card: Card, index: usize)
+        +draw_card() -> Card
+    }
+
+    class Card {
+        <<trait>>
+    }
+
+    State "1" o-- "2" Board : contains
+    State "1" o-- "2" Pile : contains
+    Board "1" o-- "*" Tile : has
+    Tile "1" o-- "1" Card : holds
+    Pile "1" o-- "*" Card : holds
+```
+
+
+The game board is stored internally as a matrix with a fixed height of 5, while the width is dynamically adjusted to accommodate board expansion. Each tile in the matrix is represented by an object containing the card placed on that tile, along with references to its neighboring tiles. This structure allows a card to evaluate its surroundings, such as determining how many resources it should yield based on adjacent tiles. The matrix can be traversed and queried for possible player actions (e.g., checking if a card provides a "trade 2 wool : 1 any" option). Additionally, each tile can be queried for modifiers that affect gameplay.
