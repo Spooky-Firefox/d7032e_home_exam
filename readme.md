@@ -11,6 +11,7 @@ The analysis began by reading the requirements of the home exam.
 Then an evaluation of the source began, things i noted can be seen in the following section
 
 ### Notes of the sourcecode
+
 This section contains notes and observations during the review of VajbCruncher code
 
 #### Server.java
@@ -31,7 +32,6 @@ The whole server appears to be a single class with 1369 lines of code.
 
 - While I, as a Rustacean, do not like the exception system in Java and personally prefer errors as values but I see its appeal, but the server's error handling is poor. It often  continues execution, which can lead to unexpected behavior. It would be better to handle exceptions more gracefully and provide meaningful error messages to the clients. (A block around the run method captures all uncaught errors, regardless of what they are; at least it aborts execution.)
 
-
 - The game loop have the phases hardcoded in the run method, which makes it difficult to change or extend the game logic. A state pattern would work nice here
 
 - There are no unit tests, and it would be hard to implement them as the code does not have that in mind in its design.
@@ -39,6 +39,7 @@ The whole server appears to be a single class with 1369 lines of code.
 - Ai mentioned that program does poor resource management, as it does not use try with resources or close connections explicitly (a win for rust's RAII).
 
 #### Player.java
+
 This class is 621 lines of code, yet again a monolith with multiple responsibilities.
 
 - The class handles both local and bot players, which could be separated into different classes to adhere to the Single Responsibility Principle (SRP). The player should therefore be an interface.
@@ -82,8 +83,8 @@ another monolith with 650 lines
 
 ## Design choices for the rust version
 
-
 ### Game loop
+
 ```mermaid
 sequenceDiagram
     participant Game
@@ -106,7 +107,6 @@ sequenceDiagram
     end
         Phase->>Game: next_phase
 ```
-
 
 > **Note:**  
 > This diagram does not illustrate how the server manages random events or dice rolls in relation to the rest of the system.  
