@@ -4,4 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+color-eyre = "0.6.5"
+crossbeam = "0.8.4"
+crossterm = "0.29.0"
+crosstermion = "0.14.0"
+hecs = "0.10.5"
 ratatui = "0.29.0"
