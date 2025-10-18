@@ -4,6 +4,7 @@
         "Crossterm",
         "desynchronization",
         "gson",
+        "hecs",
         "javac",
         "ratatui",
         "usize"

@@ -6,10 +6,16 @@ pub trait DecisionChoice: Send {
 }
 
 pub trait UserStrategy {
-    fn new(state: Arc<Mutex<hecs::World>>) -> Self;
+    fn new(state: Arc<Mutex<hecs::World>>) -> Self
+    where
+        Self: Sized;
 
     fn get_user_decision(
         &self,
         decisions: Vec<Box<dyn DecisionChoice>>,
     ) -> Box<dyn DecisionChoice>;
+}
+
+pub trait Phase {
+    fn evaluate(state: Arc<Mutex<hecs::World>>, user_strategy: &mut dyn UserStrategy);
 }

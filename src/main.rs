@@ -3,8 +3,6 @@ mod terminal_ui;
 mod common;
 mod util;
 
-use std::{thread::sleep, time::Duration};
-
 use terminal_ui::PlayerTUI;
 
 use crate::game::Game;

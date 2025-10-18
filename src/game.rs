@@ -5,7 +5,7 @@ use hecs::World;
 
 pub struct Game<T: UserStrategy> {
     user_strategy: T,
-    state: Arc<Mutex<World>>,
+    _state: Arc<Mutex<World>>,
 }
 
 
@@ -14,12 +14,13 @@ impl<T: UserStrategy> Game<T> {
         let state = Arc::new(Mutex::new(World::new()));
         Game {
             user_strategy: T::new(state.clone()),
-            state
+            _state : state
         }
     }
 
     pub fn start(&mut self) {
-        let u = self.user_strategy.get_user_decision(
+        // temporary user decision example
+        let _u = self.user_strategy.get_user_decision(
             (0..10)
                 .map(|i| {
                     Box::new(crate::util::SimpleDecisionChoice {
