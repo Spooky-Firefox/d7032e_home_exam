@@ -10,10 +10,7 @@ use crate::common::{DecisionChoice, UserStrategy};
 use color_eyre::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
-    Frame,
-    layout::{Constraint, Layout},
-    style::{Style, Stylize},
-    widgets::{Block, List, ListState},
+    layout::{Constraint, Layout}, style::{Style, Stylize}, widgets::{Block, List, ListState, Paragraph}, Frame
 };
 
 pub struct PlayerTUI {
@@ -29,16 +26,22 @@ impl UserStrategy for PlayerTUI {
         _decisions: Vec<Box<dyn DecisionChoice>>,
     ) -> Box<dyn DecisionChoice> {
         self.send_event
-            .send(SendToTUI::_RequestDecision(_decisions))
+            .send(SendToTUI::RequestDecision(_decisions))
             .unwrap();
-        match self.receive_event.recv().unwrap() {
-            ReceiveFromTUI::_DecisionMade(choice) => choice,
+        match self.receive_event.recv().unwrap() { // this unwrap will cause panic if the thread has panicked or closed
+            ReceiveFromTUI::DecisionMade(choice) => choice,
             _ => panic!("Unexpected message received"),
         }
     }
 
     fn new(state: Arc<Mutex<hecs::World>>) -> Self {
         Self::new(state)
+    }
+    
+    fn send_message(&self, message: String) {
+        self.send_event
+            .send(SendToTUI::ShowMessage(message))
+            .unwrap();
     }
 }
 
@@ -70,16 +73,17 @@ struct PlayerTUIThread {
     player_actions: Vec<Box<dyn DecisionChoice>>,
     receive_event: Receiver<SendToTUI>,
     send_event: Sender<ReceiveFromTUI>,
+    messages: Vec<String>,
 }
 
 enum SendToTUI {
     Quit,
-    _RequestDecision(Vec<Box<dyn DecisionChoice>>),
-    _ShowMessage(String),
+    RequestDecision(Vec<Box<dyn DecisionChoice>>),
+    ShowMessage(String),
 }
 
 enum ReceiveFromTUI {
-    _DecisionMade(Box<dyn DecisionChoice>),
+    DecisionMade(Box<dyn DecisionChoice>),
     _Quit,
 }
 
@@ -110,6 +114,7 @@ impl PlayerTUIThread {
             receive_event: receive_send_to_tui,
             send_event: send_to_game,
             player_list_state: ListState::default(),
+            messages: Vec::new(),
         };
         let thread = thread::spawn(move || player_tui_thread.start());
         (send_to_tui, receive_event, thread)
@@ -134,11 +139,11 @@ impl PlayerTUIThread {
             match self.receive_event.recv_timeout(Duration::from_millis(10)) {
                 Ok(event) => match event {
                     SendToTUI::Quit => break,
-                    SendToTUI::_RequestDecision(decisions) => {
+                    SendToTUI::RequestDecision(decisions) => {
                         self.player_actions = decisions;
                     }
-                    SendToTUI::_ShowMessage(_message) => {
-                        // Handle showing message
+                    SendToTUI::ShowMessage(message) => {
+                        self.messages.push(message);
                     }
                 },
                 Err(channel::RecvTimeoutError::Timeout) => {
@@ -190,7 +195,7 @@ impl PlayerTUIThread {
                 if let Some(selected) = self.player_list_state.selected() {
                     let choice = self.player_actions.swap_remove(selected);
                     self.send_event
-                        .send(ReceiveFromTUI::_DecisionMade(choice))
+                        .send(ReceiveFromTUI::DecisionMade(choice))
                         .unwrap();
                 }
                 Ok(false)
@@ -223,7 +228,7 @@ impl PlayerTUIThread {
         f.render_stateful_widget(list, choice_list, &mut self.player_list_state);
 
         let vert = Layout::new(ratatui::layout::Direction::Vertical,
-            [Constraint::Percentage(40), Constraint::Percentage(40), Constraint::Percentage(20)])
+            [Constraint::Percentage(30), Constraint::Percentage(30), Constraint::Percentage(20),Constraint::Percentage(20)])
             .split(layout[0]);
 
         let player_board_block = Block::bordered().title("Player Board");
@@ -231,8 +236,12 @@ impl PlayerTUIThread {
 
         let opponent_board_block = Block::bordered().title("Opponent Board");
         f.render_widget(opponent_board_block, vert[1]);
+        let hand = Paragraph::new("lorem ipsum dolor sit amet")
+            .block(Block::bordered().title("Cards"));
+        f.render_widget(hand, vert[2]);
 
-        let info_block = Block::bordered().title("Info");
-        f.render_widget(info_block, vert[2]);
+        let info = Paragraph::new(self.messages.join("\n"))
+            .block(Block::bordered().title("Info"));
+        f.render_widget(info, vert[3]);
     }
 }

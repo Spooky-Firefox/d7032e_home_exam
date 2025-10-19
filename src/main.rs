@@ -2,6 +2,8 @@ mod game;
 mod terminal_ui;
 mod common;
 mod util;
+mod phase;
+mod cards;
 
 use terminal_ui::PlayerTUI;
 

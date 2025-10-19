@@ -14,8 +14,10 @@ pub trait UserStrategy {
         &self,
         decisions: Vec<Box<dyn DecisionChoice>>,
     ) -> Box<dyn DecisionChoice>;
+    
+    fn send_message(&self, message: String);
 }
 
-pub trait Phase {
-    fn evaluate(state: Arc<Mutex<hecs::World>>, user_strategy: &mut dyn UserStrategy);
+pub trait Phase{
+    fn evaluate(&mut self, state: Arc<Mutex<hecs::World>>, user_strategy: &mut dyn UserStrategy);
 }

@@ -10,7 +10,7 @@ impl ReplenishHand {
 }
 
 impl Phase for ReplenishHand {
-    fn evaluate(_state: Arc<Mutex<hecs::World>>, _user_strategy: &mut dyn UserStrategy) {
+    fn evaluate(&mut self, _state: Arc<Mutex<hecs::World>>, _user_strategy: &mut dyn UserStrategy) {
         todo!()
     }
 }
