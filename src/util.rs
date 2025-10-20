@@ -1,6 +1,8 @@
 use crate::common::DecisionChoice;
 
+#[derive(Clone)]
 pub struct SimpleDecisionChoice {
+    pub id: u32,
     pub name: String,
     pub description: String,
 }
@@ -12,6 +14,14 @@ impl DecisionChoice for SimpleDecisionChoice {
     
     fn text(&self) -> String {
         self.description.clone()
+    }
+
+    fn id(&self) -> u32 {
+        self.id
+    }
+    
+    fn clone_box(&self) -> Box<dyn DecisionChoice> {
+        Box::new(self.clone())
     }
 }
 

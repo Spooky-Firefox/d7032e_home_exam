@@ -1,8 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 pub trait DecisionChoice: Send {
+    fn id(&self) -> u32;
     fn name(&self) -> String;
     fn text(&self) -> String;
+    fn clone_box(&self) -> Box<dyn DecisionChoice>;
 }
 
 pub trait UserStrategy {
