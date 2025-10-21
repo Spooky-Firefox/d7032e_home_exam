@@ -4,7 +4,7 @@ use crate::{
     cards::initialize::init_card_position,
     common::UserStrategy,
     phase::{
-        brigand_attack, loop_phase, roll_dice::{self, DiceRoll}
+        brigand_attack, loop_phase, production, roll_dice::{self, DiceRoll}
     },
     util::{self, SimpleDecisionChoice},
 };
@@ -43,8 +43,10 @@ impl<T: UserStrategy> Game<T> {
                 [
                     Box::new(roll_dice::DiceRoll::new()),
                     Box::new(brigand_attack::EventBrigandAttack::new()),
+                    Box::new(production::ProductionPhase::new()),
                 ],
                 [
+                    None,
                     None,
                     Some([
                         SimpleDecisionChoice::new(0, "Continue", "Continue to next Turn"),

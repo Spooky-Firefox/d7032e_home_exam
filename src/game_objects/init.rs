@@ -1,21 +1,23 @@
 use hecs::{EntityBuilder, World};
 use std::sync::{Arc, Mutex};
 
-use crate::game_objects::{
+use crate::{cards::cards::Owner, game_objects::{
     active_player_token::ActivePlayerToken,
     dice::Dice,
     event_dice::EventDice,
     production_dice::ProductionDice,
     strength_token::StrengthToken,
     trade_token::TradeToken,
-};
+}};
 
 /// Initialize all the game objects in the world
 pub fn initialize_game_objects(state: Arc<Mutex<World>>) {
     let mut world = state.lock().unwrap();
     
     // Create active player token (one per game)
-    world.spawn((ActivePlayerToken,));
+
+    // FIXME have a random starting player
+    world.spawn((ActivePlayerToken, Owner::Player1));
     
     // Create dice for production (one per game)
     let dice = Dice::new(6);
