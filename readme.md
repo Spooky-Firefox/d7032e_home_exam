@@ -81,6 +81,23 @@ another monolith with 650 lines
 
 - the card class contains a large amount of if else
 
+### Question a
+
+#### failure to met requirements
+
+1. The requiremnt are two remote or one local + one remote, the code implemets one local + bot or one local + remote, is this not what the requirements was.
+2. pass by glancing at the code
+3. in the video you are shown to be able to chose each card you draw, but my interpratation is that you draw 3 cards from the same stack
+4. 
+5. 
+
+#### Testing
+
+Some of the functions would be easy to test, souch as the extract cardsByAtribute
+as they have no side effects
+
+but functions like applyEffect have tight integration with current state (given by the active player argument) making it harder to test, as well as reason about, this is not imporved by the fact the function is 300 rows. another thing to mention is that it interects with players feild directly again making it harder to reason about, another thing is that Player is a class so its hard to subsitute with a dummy when testing, or thesting i recomend braking up this function to smaler pices.
+
 ## Design choices for the rust version
 
 ### Game loop
