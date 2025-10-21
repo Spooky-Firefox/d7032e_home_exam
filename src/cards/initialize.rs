@@ -1,15 +1,14 @@
+use crate::cards::cards::{ActivationDice, Card, JsonCardComponent, Owner, Position, Theme};
 use hecs::{EntityBuilder, World};
 use serde_json;
 use std::sync::{Arc, Mutex};
-use crate::cards::cards::{Card, JsonCardComponent, Owner, Position, Theme};
 
 /// Initialize the card deck for the game
 pub fn initialize_cards(state: Arc<Mutex<World>>) {
     let mut world = state.lock().unwrap();
 
     let cards: Vec<JsonCardComponent> =
-        serde_json::from_str(include_str!("cards.json"))
-            .expect("Failed to parse card data");
+        serde_json::from_str(include_str!("cards.json")).expect("Failed to parse card data");
 
     // assert that each cards has a unique name
     // since we dont have a card type id or similar we use the name as the unique identifier
@@ -23,7 +22,7 @@ pub fn initialize_cards(state: Arc<Mutex<World>>) {
     let mut e = EntityBuilder::new();
     cards.into_iter().for_each(|card| {
         // create the number of cards specified an example would be roads, which we have 9 of
-        for _ in 0..card.number_of_cards {
+        for i in 0..card.number_of_cards {
             // destructure the card to get its fields
             // this allows us to insert each field as its own component
             // as well as handle "null components" by skipping them
@@ -39,6 +38,8 @@ pub fn initialize_cards(state: Arc<Mutex<World>>) {
                 type_of_card,
                 placement,
                 theme,
+                produces,
+                for_each_card_activation_dice,
                 ..
             } = card.clone(); // the clone is necessary to as we might construct multiple cards from the same template
 
@@ -48,6 +49,17 @@ pub fn initialize_cards(state: Arc<Mutex<World>>) {
             }
 
             // Create a new entity builder which we will use to build the entity
+            if let Some(r) = produces {
+                e.add(r);
+            }
+
+            // this is not the nicest way of doing it but due to the number_of_cards we have to do it this way
+            // see the comment in cards.rs:21 for more details and possible future improvements
+            if let Some(activation) =
+                for_each_card_activation_dice.map(|a| a.get(i as usize).unwrap().clone())
+            {
+                e.add(activation);
+            }
 
             e.add(Card { name, description });
 
@@ -60,6 +72,8 @@ pub fn initialize_cards(state: Arc<Mutex<World>>) {
 }
 
 pub fn init_card_position(state: Arc<Mutex<World>>) {
+    
+    
     fn place_cards(world: &mut World, card_name: &str, position: Position) {
         // move cards into  the board
         // select two forrest and place them
@@ -89,28 +103,50 @@ pub fn init_card_position(state: Arc<Mutex<World>>) {
 
         // unwrap is safe here as we know there exist at least two forest cards (if loading the cards have not failed)
         world.insert_one(region_cards[0], position.clone()).unwrap();
-        world
-            .insert_one(region_cards[0], Owner::Player1)
-            .unwrap();
+        world.insert_one(region_cards[0], Owner::Player1).unwrap();
 
         world.insert_one(region_cards[1], position).unwrap();
-        world
-            .insert_one(region_cards[1], Owner::Player2)
-            .unwrap();
+        world.insert_one(region_cards[1], Owner::Player2).unwrap();
+    }
+
+    fn place_card_with_activation(world: &mut World, card_name: &str, position: Position, owner: Owner, activation: ActivationDice) {
+        // move cards into  the board
+        let mut q = world.query::<(&Card,&ActivationDice)>();
+        let card = q
+            .iter()
+            .filter_map(|(e, (card, card_activation))| {
+                if card.name == card_name && *card_activation == activation {
+                    Some(e)
+                } else {
+                    None
+                }
+            }).next().unwrap();
+        drop(q); // need to drop the query to avoid borrow issues (since both insert and query borrow world mutably)
+        world.insert_one(card, position.clone()).unwrap();
+        world.insert_one(card, owner).unwrap();
+
     }
 
     let mut world = state.lock().unwrap();
 
-    // place region cards for both players
-    place_cards(&mut world, "Forest", Position::Board(-2, -1)); // Forest
-    place_cards(&mut world, "Gold Field", Position::Board(0, -1)); // Gold Field
-    place_cards(&mut world, "Field", Position::Board(2, -1)); // Field
-    place_cards(&mut world, "Hill", Position::Board(-2, 1)); // Hills
-    place_cards(&mut world, "Pasture", Position::Board(0, 1)); // Pasture
-    place_cards(&mut world, "Mountain", Position::Board(2, 1)); // Mountains
+    // place cards for player 1
+    place_card_with_activation(&mut world, "Forest", Position::Board(-2, -1), Owner::Player1, ActivationDice(2)); // Forest
+    place_card_with_activation(&mut world, "Gold Field", Position::Board(0, -1), Owner::Player1, ActivationDice(1)); // Gold Field
+    place_card_with_activation(&mut world, "Field", Position::Board(2, -1), Owner::Player1, ActivationDice(6)); // Field
+    place_card_with_activation(&mut world, "Hill", Position::Board(-2, 1), Owner::Player1, ActivationDice(3)); // Hills
+    place_card_with_activation(&mut world, "Pasture", Position::Board(0, 1), Owner::Player1, ActivationDice(4)); // Pasture
+    place_card_with_activation(&mut world, "Mountain", Position::Board(2, 1), Owner::Player1, ActivationDice(5)); // Mountains
 
+    // place cards for player 2
+    
     // place road cards for both players
     place_cards(&mut world, "Road", Position::Board(0, 0));
+    place_card_with_activation(&mut world, "Forest", Position::Board(-2, -1), Owner::Player2, ActivationDice(3)); // Forest
+    place_card_with_activation(&mut world, "Gold Field", Position::Board(0, -1), Owner::Player2, ActivationDice(4)); // Gold Field
+    place_card_with_activation(&mut world, "Field", Position::Board(2, -1), Owner::Player2, ActivationDice(5)); // Field
+    place_card_with_activation(&mut world, "Hill", Position::Board(-2, 1), Owner::Player2, ActivationDice(2)); // Hills
+    place_card_with_activation(&mut world, "Pasture", Position::Board(0, 1), Owner::Player2, ActivationDice(1)); // Pasture
+    place_card_with_activation(&mut world, "Mountain", Position::Board(2, 1), Owner::Player2, ActivationDice(6)); // Mountains
 
     // place settlement cards for both players
     place_cards(&mut world, "Settlement", Position::Board(-1, 0));

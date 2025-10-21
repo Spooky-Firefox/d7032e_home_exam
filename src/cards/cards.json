@@ -3586,6 +3586,8 @@
     "PP": null,
     "LP": null,
     "KP": null,
+    "produces": "Grain",
+    "for_each_card_activation_dice": [6,5,3,1],
     "Requires": "Settlement built",
     "cardText": "Gains resources based on production die roll. 1 building site for brown.",
     "protectionOrRemoval": null
@@ -3607,6 +3609,8 @@
     "PP": null,
     "LP": null,
     "KP": null,
+    "produces": "Ore",
+    "for_each_card_activation_dice": [5,6,4,2],
     "Requires": "Settlement built",
     "cardText": "Gains resources based on production die roll. 1 building site for brown.",
     "protectionOrRemoval": null
@@ -3629,6 +3633,8 @@
     "LP": null,
     "KP": null,
     "Requires": "Settlement built",
+    "produces": "Gold",
+    "for_each_card_activation_dice": [1,4,3,2],
     "cardText": "Gains resources based on production die roll. 1 building site for brown.",
     "protectionOrRemoval": null
   },
@@ -3650,6 +3656,8 @@
     "LP": null,
     "KP": null,
     "Requires": "Settlement built",
+    "produces": "Brick",
+    "for_each_card_activation_dice": [3,2,5,1],
     "cardText": "Gains resources based on production die roll. 1 building site for brown.",
     "protectionOrRemoval": null
   },
@@ -3671,6 +3679,8 @@
     "LP": null,
     "KP": null,
     "Requires": "Settlement built",
+    "produces": "Lumber",
+    "for_each_card_activation_dice": [2,3,6,2],
     "cardText": "Gains resources based on production die roll. 1 building site for brown.",
     "protectionOrRemoval": null
   },
@@ -3691,6 +3701,8 @@
     "PP": null,
     "LP": null,
     "KP": null,
+    "produces": "Wool",
+    "for_each_card_activation_dice": [4,1,6,5],
     "Requires": "Settlement built",
     "cardText": "Gains resources based on production die roll. 1 building site for brown.",
     "protectionOrRemoval": null

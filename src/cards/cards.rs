@@ -16,6 +16,28 @@ pub struct JsonCardComponent {
     pub theme: Theme,
 
     pub placement: Placement,
+
+    pub produces: Option<Resource>,
+
+    // This is fore use in conjunction with number_of_cards to assign activation dice to each card created
+    // this is not a good way to do it but it works for now
+    // one better way would be to not have number_of_cards and instead have a list of cards to create
+    // but due to time constraints we go with this approach (rewriting json is time consuming)
+    pub for_each_card_activation_dice: Option<Vec<ActivationDice>>,
+
+    pub card_activation_dice: Option<ActivationDice>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq)]
+pub struct ActivationDice(pub u8);
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub enum Resource {
+    Lumber,
+    Gold,
+    Grain,
+    Brick,
+    Wool,
+    Ore,
 }
 
 pub struct Card {
