@@ -5,12 +5,18 @@ use std::{
     time::Duration,
 };
 
-use crate::common::{DecisionChoice, UserStrategy};
+use crate::{
+    cards::cards,
+    common::{DecisionChoice, UserStrategy}, game_objects,
+};
 
 use color_eyre::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
-    layout::{Constraint, Layout}, style::{Style, Stylize}, widgets::{Block, List, ListState, Paragraph}, Frame
+    Frame,
+    layout::{Constraint, Layout, Rect},
+    style::{Style, Stylize},
+    widgets::{Block, List, ListState, Paragraph},
 };
 
 pub struct PlayerTUI {
@@ -28,7 +34,8 @@ impl UserStrategy for PlayerTUI {
         self.send_event
             .send(SendToTUI::RequestDecision(_decisions))
             .unwrap();
-        match self.receive_event.recv().unwrap() { // this unwrap will cause panic if the thread has panicked or closed
+        match self.receive_event.recv().unwrap() {
+            // this unwrap will cause panic if the thread has panicked or closed
             ReceiveFromTUI::DecisionMade(choice) => choice,
             _ => panic!("Unexpected message received"),
         }
@@ -37,7 +44,7 @@ impl UserStrategy for PlayerTUI {
     fn new(state: Arc<Mutex<hecs::World>>) -> Self {
         Self::new(state)
     }
-    
+
     fn send_message(&self, message: String) {
         self.send_event
             .send(SendToTUI::ShowMessage(message))
@@ -68,7 +75,7 @@ impl Drop for PlayerTUI {
 }
 
 struct PlayerTUIThread {
-    _state: Arc<Mutex<hecs::World>>,
+    state: Arc<Mutex<hecs::World>>,
     player_list_state: ListState,
     player_actions: Vec<Box<dyn DecisionChoice>>,
     receive_event: Receiver<SendToTUI>,
@@ -109,7 +116,7 @@ impl PlayerTUIThread {
         let (send_to_tui, receive_send_to_tui) = channel::unbounded::<SendToTUI>();
         let (send_to_game, receive_event) = channel::unbounded();
         let mut player_tui_thread = PlayerTUIThread {
-            _state: state,
+            state,
             player_actions: Vec::new(),
             receive_event: receive_send_to_tui,
             send_event: send_to_game,
@@ -204,6 +211,49 @@ impl PlayerTUIThread {
         }
     }
 
+    fn render_board(&mut self, cards: &cards::Owner) -> ratatui::widgets::Paragraph {
+        // query the world for cards owned by the given owner
+        let world = self.state.lock().unwrap();
+        let mut q = world.query::<(&cards::Card, &cards::Position, &cards::Owner)>();
+        let cards: Vec<(String, i32, i32)> = q
+            .iter()
+            .filter_map(|(_, (card, position, ownership))| {
+                if ownership == cards {
+                    if let cards::Position::Board(x, y) = position {
+                        Some((card.name.clone(), *x, *y))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+        drop(q);
+
+        // TODO dont assume that the board is -5 x to 5
+        // note that there is probably a better way to do this with ratatui
+        // grid of cards, access is [y][x]
+        let mut board: [[String; 10]; 5] = Default::default();
+        for (name, x, y) in cards {
+            let board_x = (x + 5) as usize;
+            let board_y = (y + 2) as usize;
+            board[board_y][board_x] = name;
+        }
+
+        // convert to sting for paragraph
+        let board_str: String = board
+            .map(|y| 
+                y.map(|x| format!("{:10}", x)).join(" | ")
+            )
+            .into_iter()
+            .collect::<Vec<_>>()
+            .join("\n-----------------------------------------------------------------------------------------------------------------\n");
+        let p = Paragraph::new(board_str);
+
+        p
+    }
+
     fn render(&mut self, f: &mut Frame) {
         let layout = Layout::new(
             ratatui::layout::Direction::Horizontal,
@@ -218,7 +268,8 @@ impl PlayerTUIThread {
             } else {
                 format!("{}", action.name())
             }
-        })).block(
+        }))
+        .block(
             Block::bordered()
                 .title("player actions")
                 .title_bottom("Use ↑↓ arrows to choose, enter to select"),
@@ -227,21 +278,33 @@ impl PlayerTUIThread {
         .highlight_style(Style::new().bold());
         f.render_stateful_widget(list, choice_list, &mut self.player_list_state);
 
-        let vert = Layout::new(ratatui::layout::Direction::Vertical,
-            [Constraint::Percentage(30), Constraint::Percentage(30), Constraint::Percentage(20),Constraint::Percentage(20)])
-            .split(layout[0]);
+        let vert = Layout::new(
+            ratatui::layout::Direction::Vertical,
+            [
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+                Constraint::Percentage(20),
+                Constraint::Percentage(20),
+            ],
+        )
+        .split(layout[0]);
 
-        let player_board_block = Block::bordered().title("Player Board");
+        let player_board_block = self.render_board(&cards::Owner::Player1).block(Block::bordered().title("Player Board"));
         f.render_widget(player_board_block, vert[0]);
 
-        let opponent_board_block = Block::bordered().title("Opponent Board");
+        let opponent_board_block = self.render_board(&cards::Owner::Player2).block(Block::bordered().title("Opponent Board"));
         f.render_widget(opponent_board_block, vert[1]);
-        let hand = Paragraph::new("lorem ipsum dolor sit amet")
-            .block(Block::bordered().title("Cards"));
-        f.render_widget(hand, vert[2]);
+        {
+            let mut world = self.state.lock().unwrap();
+            let q = world.query_mut::<(&game_objects::production_dice::ProductionDice,)>();
+            let dice_val = q.into_iter().next().unwrap().1.0.0.current_value;
 
-        let info = Paragraph::new(self.messages.join("\n"))
-            .block(Block::bordered().title("Info"));
+            let hand = Paragraph::new(format!("Current production dice value: {}", dice_val))
+                .block(Block::bordered().title("Cards"));
+            f.render_widget(hand, vert[2]);
+        }
+
+        let info = Paragraph::new(self.messages.join("\n")).block(Block::bordered().title("Info"));
         f.render_widget(info, vert[3]);
     }
 }
