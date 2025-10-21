@@ -1,199 +1,229 @@
-use std::sync::{Arc, Mutex};
 use hecs::{EntityBuilder, World};
 use serde_json;
-use serde::{Serialize, Deserialize};
-/// A basic card component containing a name and description
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct JsonCardComponent {
-    pub name: String,
-    #[serde(rename = "cardText")]
-    pub description: String,
-
-    #[serde(rename = "type")]
-    pub type_of_card: CardType,
-
-    pub theme: Theme,
-
-    pub placement: Placement,
-}
-
-pub struct Card {
-    pub name: String,
-    pub description: String,
-}
-
-/// Card type enum representing different card categories
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub enum CardType {
-    #[serde(rename = "Action – Attack")]
-    ActionAttack,
-    #[serde(rename = "Action – Neutral")]
-    ActionNeutral,
-    #[serde(rename = "Building")]
-    Building,
-    #[serde(rename = "Center Card")]
-    CenterCard,
-    #[serde(rename = "Event")]
-    Event,
-    #[serde(rename = "Extraordinary Site")]
-    ExtraordinarySite,
-    #[serde(rename = "Marker Card")]
-    MarkerCard,
-    #[serde(rename = "Metropolis")]
-    Metropolis,
-    #[serde(rename = "Region")]
-    Region,
-    #[serde(rename = "Unit")]
-    Unit,
-    #[serde(rename = "Unit – Hero")]
-    UnitHero,
-    #[serde(rename = "Unit – Sage")]
-    UnitSage,
-    #[serde(rename = "Unit – Ship")]
-    UnitShip,
-    #[serde(rename = "Unit – Trade Ship")]
-    UnitTradeShip,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub enum Placement {
-    #[serde(rename = "Action")]
-    Action,
-    #[serde(rename = "Action (Owls)")]
-    ActionOwls,
-    #[serde(rename = "Center Card")]
-    CenterCard,
-    #[serde(rename = "City")]
-    City,
-    #[serde(rename = "City (Foreign)")]
-    CityForeign,
-    #[serde(rename = "Event")]
-    Event,
-    #[serde(rename = "Marker Card")]
-    MarkerCard,
-    #[serde(rename = "Region")]
-    Region,
-    #[serde(rename = "Region (Foreign)")]
-    RegionForeign,
-    #[serde(rename = "Road")]
-    Road,
-    #[serde(rename = "Road (Foreign)")]
-    RoadForeign,
-    #[serde(rename = "Sea")]
-    Sea,
-    #[serde(rename = "Settlement/city")]
-    SettlementCity,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone,PartialEq, Eq)]
-pub enum Theme {
-    #[serde(rename = "Barbarians")]
-    Barbarians,
-    #[serde(rename = "Basic")]
-    Basic,
-    #[serde(rename = "Basic + Gold")]
-    BasicGold,
-    #[serde(rename = "Basic + Progress")]
-    BasicProgress,
-    #[serde(rename = "Basic + Progress + Barbarians")]
-    BasicProgressBarbarians,
-    #[serde(rename = "Basic ÷ Turmoil")]
-    BasicTurmoil,
-    #[serde(rename = "Explorers")]
-    Explorers,
-    #[serde(rename = "Gold")]
-    Gold,
-    #[serde(rename = "Gold + Merchant Princes")]
-    GoldMerchantPrinces,
-    #[serde(rename = "Gold + Turmoil")]
-    GoldTurmoil,
-    #[serde(rename = "Intrigue")]
-    Intrigue,
-    #[serde(rename = "Merchant Princes")]
-    MerchantPrinces,
-    #[serde(rename = "Progress")]
-    Progress,
-    #[serde(rename = "Prosperity")]
-    Prosperity,
-    #[serde(rename = "Sages")]
-    Sages,
-    #[serde(rename = "Turmoil")]
-    Turmoil,
-
-}
-
-/// Position component for cards
-pub enum Position {
-    Board(i32, i32),
-    EventStack(u32),
-    DrawStack1(u32),
-    DrawStack2(u32),
-    DrawStack3(u32),
-    DrawStack4(u32),
-}
-
-pub enum Ownership {
-    Player1,
-    Player2,
-}
-
+use std::sync::{Arc, Mutex};
+use crate::cards::cards::{Card, JsonCardComponent, Owner, Position, Theme};
 
 /// Initialize the card deck for the game
 pub fn initialize_cards(state: Arc<Mutex<World>>) {
     let mut world = state.lock().unwrap();
 
-    let cards: Vec<JsonCardComponent> = serde_json::from_str(
-        include_str!("../../VajbCruncher/cards.json")
-    ).expect("Failed to parse card data");
+    let cards: Vec<JsonCardComponent> =
+        serde_json::from_str(include_str!("cards.json"))
+            .expect("Failed to parse card data");
 
+    // assert that each cards has a unique name
+    // since we dont have a card type id or similar we use the name as the unique identifier
+    let mut card_names = std::collections::HashSet::new();
+    for card in &cards {
+        if !card_names.insert(&card.name) {
+            panic!("Duplicate card name found: {}", card.name);
+        }
+    }
 
+    let mut e = EntityBuilder::new();
     cards.into_iter().for_each(|card| {
-        
-        // destructure the card to get its fields
-        // this allows us to insert each field as its own component
-        // as well as handle "null components" by skipping them
-        // so if a component have null on vp we simply dont insert a vp component
-        
-        // there exist another way to do this with serde and that is to serialize it to a map
-        // and then iterate over the map inserting components based on the keys
-        // but this way is more type safe and easier to read
-        // but may lead to more Option<> unwraps/if let in the future if we add more optional components
-        let JsonCardComponent {
-            name,
-            description,
-            type_of_card,
-            placement,
-            theme,
-        } = card;
+        // create the number of cards specified an example would be roads, which we have 9 of
+        for _ in 0..card.number_of_cards {
+            // destructure the card to get its fields
+            // this allows us to insert each field as its own component
+            // as well as handle "null components" by skipping them
+            // so if a component have null on vp we simply dont insert a vp component
 
-        // if the theme is not basic we skip the card
-        if theme != Theme::Basic {
-            return;
+            // there exist another way to do this with serde and that is to serialize it to a map
+            // and then iterate over the map inserting components based on the keys
+            // but this way is more type safe and easier to read
+            // but may lead to more Option<> unwraps/if let in the future if we add more optional components
+            let JsonCardComponent {
+                name,
+                description,
+                type_of_card,
+                placement,
+                theme,
+                ..
+            } = card.clone(); // the clone is necessary to as we might construct multiple cards from the same template
+
+            // if the theme is not basic we skip the card
+            if theme != Theme::Basic {
+                return;
+            }
+
+            // Create a new entity builder which we will use to build the entity
+
+            e.add(Card { name, description });
+
+            e.add(type_of_card);
+            e.add(placement);
+
+            world.spawn(e.build());
+        }
+    });
+}
+
+pub fn init_card_position(state: Arc<Mutex<World>>) {
+    fn place_cards(world: &mut World, card_name: &str, position: Position) {
+        // move cards into  the board
+        // select two forrest and place them
+        let mut q = world.query::<&Card>();
+        let region_cards = q
+            .iter()
+            .filter_map(|(e, card)| {
+                if card.name == card_name {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .take(2)
+            .collect::<Vec<_>>();
+        drop(q); // need to drop the query to avoid borrow issues (since both insert and query borrow world mutably)
+
+        // this should not trigger since we know there are at least two forest cards
+        assert!(
+            region_cards.len() == 2,
+            "Not enough cards found to initialize the board {}",
+            card_name
+        );
+
+        // the center road is at 0,0
+        // +x is right, +y is down
+
+        // unwrap is safe here as we know there exist at least two forest cards (if loading the cards have not failed)
+        world.insert_one(region_cards[0], position.clone()).unwrap();
+        world
+            .insert_one(region_cards[0], Owner::Player1)
+            .unwrap();
+
+        world.insert_one(region_cards[1], position).unwrap();
+        world
+            .insert_one(region_cards[1], Owner::Player2)
+            .unwrap();
+    }
+
+    let mut world = state.lock().unwrap();
+
+    // place region cards for both players
+    place_cards(&mut world, "Forest", Position::Board(-2, -1)); // Forest
+    place_cards(&mut world, "Gold Field", Position::Board(0, -1)); // Gold Field
+    place_cards(&mut world, "Field", Position::Board(2, -1)); // Field
+    place_cards(&mut world, "Hill", Position::Board(-2, 1)); // Hills
+    place_cards(&mut world, "Pasture", Position::Board(0, 1)); // Pasture
+    place_cards(&mut world, "Mountain", Position::Board(2, 1)); // Mountains
+
+    // place road cards for both players
+    place_cards(&mut world, "Road", Position::Board(0, 0));
+
+    // place settlement cards for both players
+    place_cards(&mut world, "Settlement", Position::Board(-1, 0));
+    place_cards(&mut world, "Settlement", Position::Board(1, 0));
+    //let mut stack_1_index = 0;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_initialize_cards() -> Result<(), Vec<String>> {
+        let mut err: Vec<String> = vec![];
+        let state = Arc::new(Mutex::new(World::new()));
+        initialize_cards(state.clone());
+
+        // query the world to check if cards have been added
+        let world = state.lock().unwrap();
+        let card_count = world.query::<&Card>().iter().count();
+        assert!(card_count > 0, "No cards were added to the world");
+
+        // test some random cards to see if they exist
+        // its to much work to test all cards here
+
+        let mut q = world.query::<&Card>();
+        let has_forest = q.iter().filter(|(_, card)| card.name == "Forest").count();
+        let has_gold_field = q
+            .iter()
+            .filter(|(_, card)| card.name == "Gold Field")
+            .count();
+        let has_road = q.iter().filter(|(_, card)| card.name == "Road").count();
+
+        if has_forest != 4 {
+            err.push("Forest card not found".to_string());
+        }
+        if has_gold_field != 4 {
+            err.push("Gold Field card not found".to_string());
+        }
+        if has_road != 9 {
+            err.push("Road card not found".to_string());
         }
 
-        // Create a new entity builder which we will use to build the entity
-        let mut e  = EntityBuilder::new();
+        if err.len() > 0 { Err(err) } else { Ok(()) }
+    }
 
-        e.add(Card {
-            name,
-            description,
-        });
+    #[test]
+    fn test_init_card_position() -> Result<(), Vec<String>> {
+        let mut err: Vec<String> = vec![];
 
-        e.add(type_of_card);
-        e.add(placement);
+        let state = Arc::new(Mutex::new(World::new()));
+        initialize_cards(state.clone());
+        init_card_position(state.clone());
 
-        world.spawn(e.build());
-    });
+        let world = state.lock().unwrap();
+        let mut q = world.query::<(&Card, &Position, &Owner)>();
 
-    // move cards into the board
-    // select two forrest and place them
-    // ...
+        // Check that the Forest cards are in the correct positions for both players
+        let mut forest_player1 = false;
+        let mut forest_player2 = false;
+        for (_, (card, position, ownership)) in q.iter() {
+            if card.name == "Forest" && *position == Position::Board(-2, -1) {
+                match ownership {
+                    Owner::Player1 => forest_player1 = true,
+                    Owner::Player2 => forest_player2 = true,
+                }
+            }
+        }
+        if !forest_player1 {
+            err.push("Forest card not in correct position for Player 1".to_string());
+        }
+        if !forest_player2 {
+            err.push("Forest card not in correct position for Player 2".to_string());
+        }
 
+        // Check that the Gold Field cards are in the correct positions for both players
+        let mut gold_field_player1 = false;
+        let mut gold_field_player2 = false;
+        for (_, (card, position, ownership)) in q.iter() {
+            if card.name == "Gold Field" && *position == Position::Board(0, -1) {
+                match ownership {
+                    Owner::Player1 => gold_field_player1 = true,
+                    Owner::Player2 => gold_field_player2 = true,
+                }
+            }
+        }
+        if !gold_field_player1 {
+            err.push("Gold Field card not in correct position for Player 1".to_string());
+        }
+        if !gold_field_player2 {
+            err.push("Gold Field card not in correct position for Player 2".to_string());
+        }
 
-    // move cards into stacks
-    
-    // 
-    let mut stack_1_index = 0;
+        // Check that the Field cards are in the correct positions for both players
+        let mut field_player1 = false;
+        let mut field_player2 = false;
+        for (_, (card, position, ownership)) in q.iter() {
+            if card.name == "Field" && *position == Position::Board(2, -1) {
+                match ownership {
+                    Owner::Player1 => field_player1 = true,
+                    Owner::Player2 => field_player2 = true,
+                }
+            }
+        }
+        if !field_player1 {
+            err.push("Field card not in correct position for Player 1".to_string());
+        }
+        if !field_player2 {
+            err.push("Field card not in correct position for Player 2".to_string());
+        }
 
+        // other tests can be added similarly for Hills, Pasture, Mountains
 
+        if err.len() > 0 { Err(err) } else { Ok(()) }
+    }
 }
