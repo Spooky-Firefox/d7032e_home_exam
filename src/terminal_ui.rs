@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    cards::cards,
+    cards::cards::{self, ActivationDice, ResourceStorage},
     common::{DecisionChoice, UserStrategy}, game_objects,
 };
 
@@ -214,12 +214,20 @@ impl PlayerTUIThread {
     fn render_board(&mut self, cards: &cards::Owner) -> ratatui::widgets::Paragraph {
         // query the world for cards owned by the given owner
         let world = self.state.lock().unwrap();
-        let mut q = world.query::<(&cards::Card, &cards::Position, &cards::Owner)>();
+        let mut q = world.query::<(&cards::Card, &cards::Position, &cards::Owner, Option<&ActivationDice>, Option<&ResourceStorage>)>();
         let cards: Vec<(String, i32, i32)> = q
             .iter()
-            .filter_map(|(_, (card, position, ownership))| {
+            .filter_map(|(_, (card, position, ownership, activation, storage))| {
                 if ownership == cards {
                     if let cards::Position::Board(x, y) = position {
+                        if let Some(act) = activation {
+                            if let Some(res) = storage {
+                                // include activation and resource storage in name
+                                return Some((format!("{} (A{} R{:?})", card.name, act.0, res), *x, *y));
+                            } else {
+                                return Some((format!("{} (A{} R_)", card.name, act.0), *x, *y));
+                            }
+                        }
                         Some((card.name.clone(), *x, *y))
                     } else {
                         None

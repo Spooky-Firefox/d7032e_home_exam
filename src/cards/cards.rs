@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 
 /// A basic card component containing a name and description
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -19,6 +19,9 @@ pub struct JsonCardComponent {
 
     pub produces: Option<Resource>,
 
+    #[serde(rename = "ResourceStorage")]
+    pub storage: Option<ResourceStorage>,
+
     // This is fore use in conjunction with number_of_cards to assign activation dice to each card created
     // this is not a good way to do it but it works for now
     // one better way would be to not have number_of_cards and instead have a list of cards to create
@@ -38,6 +41,15 @@ pub enum Resource {
     Brick,
     Wool,
     Ore,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Eq, Debug)]
+
+pub enum ResourceStorage {
+    Amount0,
+    Amount1,
+    Amount2,
+    Amount3,
 }
 
 pub struct Card {

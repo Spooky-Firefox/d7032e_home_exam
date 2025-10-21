@@ -1,4 +1,4 @@
-use crate::cards::cards::{ActivationDice, Card, JsonCardComponent, Owner, Position, Theme};
+use crate::cards::cards::{ActivationDice, Card, JsonCardComponent, Owner, Position, ResourceStorage, Theme};
 use hecs::{EntityBuilder, World};
 use serde_json;
 use std::sync::{Arc, Mutex};
@@ -40,6 +40,7 @@ pub fn initialize_cards(state: Arc<Mutex<World>>) {
                 theme,
                 produces,
                 for_each_card_activation_dice,
+                storage,
                 ..
             } = card.clone(); // the clone is necessary to as we might construct multiple cards from the same template
 
@@ -51,6 +52,10 @@ pub fn initialize_cards(state: Arc<Mutex<World>>) {
             // Create a new entity builder which we will use to build the entity
             if let Some(r) = produces {
                 e.add(r);
+            }
+
+            if let Some(storage) = storage {
+                e.add(storage);
             }
 
             // this is not the nicest way of doing it but due to the number_of_cards we have to do it this way
@@ -109,7 +114,7 @@ pub fn init_card_position(state: Arc<Mutex<World>>) {
         world.insert_one(region_cards[1], Owner::Player2).unwrap();
     }
 
-    fn place_card_with_activation(world: &mut World, card_name: &str, position: Position, owner: Owner, activation: ActivationDice) {
+    fn place_card_with_activation(world: &mut World, card_name: &str, position: Position, owner: Owner, activation: ActivationDice) -> hecs::Entity {
         // move cards into  the board
         let mut q = world.query::<(&Card,&ActivationDice)>();
         let card = q
@@ -124,34 +129,50 @@ pub fn init_card_position(state: Arc<Mutex<World>>) {
         drop(q); // need to drop the query to avoid borrow issues (since both insert and query borrow world mutably)
         world.insert_one(card, position.clone()).unwrap();
         world.insert_one(card, owner).unwrap();
-
+        card
     }
 
     let mut world = state.lock().unwrap();
 
     // place cards for player 1
-    place_card_with_activation(&mut world, "Forest", Position::Board(-2, -1), Owner::Player1, ActivationDice(2)); // Forest
+    // ugly, the better idea would be to have individual cards instead of relying on number of cards in the card template
     place_card_with_activation(&mut world, "Gold Field", Position::Board(0, -1), Owner::Player1, ActivationDice(1)); // Gold Field
-    place_card_with_activation(&mut world, "Field", Position::Board(2, -1), Owner::Player1, ActivationDice(6)); // Field
-    place_card_with_activation(&mut world, "Hill", Position::Board(-2, 1), Owner::Player1, ActivationDice(3)); // Hills
-    place_card_with_activation(&mut world, "Pasture", Position::Board(0, 1), Owner::Player1, ActivationDice(4)); // Pasture
-    place_card_with_activation(&mut world, "Mountain", Position::Board(2, 1), Owner::Player1, ActivationDice(5)); // Mountains
+    let cards_with_1_resource =  [
+        place_card_with_activation(&mut world, "Forest", Position::Board(-2, -1), Owner::Player1, ActivationDice(2)), // Forest
+        place_card_with_activation(&mut world, "Field", Position::Board(2, -1), Owner::Player1, ActivationDice(6)), // Field
+        place_card_with_activation(&mut world, "Hill", Position::Board(-2, 1), Owner::Player1, ActivationDice(3)), // Hills
+        place_card_with_activation(&mut world, "Pasture", Position::Board(0, 1), Owner::Player1, ActivationDice(4)), // Pasture
+        place_card_with_activation(&mut world, "Mountain", Position::Board(2, 1), Owner::Player1, ActivationDice(5)), // Mountains
+        
+        // place cards for player 2 
+        place_card_with_activation(&mut world, "Forest", Position::Board(-2, -1), Owner::Player2, ActivationDice(3)), // Forest
+        place_card_with_activation(&mut world, "Field", Position::Board(2, -1), Owner::Player2, ActivationDice(5)), // Field
+        place_card_with_activation(&mut world, "Hill", Position::Board(-2, 1), Owner::Player2, ActivationDice(2)), // Hills
+        place_card_with_activation(&mut world, "Pasture", Position::Board(0, 1), Owner::Player2, ActivationDice(1)), // Pasture
+        place_card_with_activation(&mut world, "Mountain", Position::Board(2, 1), Owner::Player2, ActivationDice(6)), // Mountains
+    ];
+    place_card_with_activation(&mut world, "Gold Field", Position::Board(0, -1), Owner::Player2, ActivationDice(4)); // Gold Field
 
-    // place cards for player 2
+    // yet again some code with not so nice looks
+    // this could be improved by not having Number of cards in the card template
+    // and each card on the board could have position owner and other components already defined
+    // but for now this will do :(
+    world.query_many_mut::<&mut ResourceStorage, _>(cards_with_1_resource)
+    .into_iter()
+    .for_each(|s| {
+        *s.unwrap() = ResourceStorage::Amount1;
+    });
     
     // place road cards for both players
     place_cards(&mut world, "Road", Position::Board(0, 0));
-    place_card_with_activation(&mut world, "Forest", Position::Board(-2, -1), Owner::Player2, ActivationDice(3)); // Forest
-    place_card_with_activation(&mut world, "Gold Field", Position::Board(0, -1), Owner::Player2, ActivationDice(4)); // Gold Field
-    place_card_with_activation(&mut world, "Field", Position::Board(2, -1), Owner::Player2, ActivationDice(5)); // Field
-    place_card_with_activation(&mut world, "Hill", Position::Board(-2, 1), Owner::Player2, ActivationDice(2)); // Hills
-    place_card_with_activation(&mut world, "Pasture", Position::Board(0, 1), Owner::Player2, ActivationDice(1)); // Pasture
-    place_card_with_activation(&mut world, "Mountain", Position::Board(2, 1), Owner::Player2, ActivationDice(6)); // Mountains
 
     // place settlement cards for both players
     place_cards(&mut world, "Settlement", Position::Board(-1, 0));
     place_cards(&mut world, "Settlement", Position::Board(1, 0));
-    //let mut stack_1_index = 0;
+    
+
+    // TODO place cards into stacks
+
 }
 
 #[cfg(test)]
