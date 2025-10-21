@@ -7,6 +7,16 @@ pub struct SimpleDecisionChoice {
     pub description: String,
 }
 
+impl SimpleDecisionChoice {
+    pub fn new(id: u32, name: &str, description: &str) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            description: description.to_string(),
+        }
+    }
+}
+
 impl DecisionChoice for SimpleDecisionChoice {
     fn name(&self) -> String {
         self.name.clone()
