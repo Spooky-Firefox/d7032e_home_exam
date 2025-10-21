@@ -6,7 +6,7 @@ use crate::util::SimpleDecisionChoice;
 /// a phase that loops over a set of phases until an abort message is chosen
 /// compile time (const generics) enforced that the number of phases is known at compile time
 /// and the same amount of abort messages are provided
-struct LoopPhase<const PHASES: usize> {
+pub struct LoopPhase<const PHASES: usize> {
     phases: [Box<dyn Phase>; PHASES],
     abort_messages: [Option<[SimpleDecisionChoice; 2]>; PHASES],
 }
@@ -36,8 +36,8 @@ impl<const PHASES: usize> Phase for LoopPhase<PHASES> {
         user_strategy: &mut dyn UserStrategy,
     ) {
         loop {
-            for (phase, abort_message) in
-                &mut self.phases.iter_mut().zip(self.abort_messages.clone())
+            for (i, (phase, abort_message)) in
+                &mut self.phases.iter_mut().zip(self.abort_messages.clone()).enumerate()
             {
                 phase.evaluate(state.clone(), user_strategy);
                 if let Some(abort_message) = abort_message {
@@ -50,8 +50,13 @@ impl<const PHASES: usize> Phase for LoopPhase<PHASES> {
                         Box::new(abort_message[0].clone()),
                         Box::new(abort_message[1].clone()),
                     ]);
+                        
                     if decision.id() == abort_message[1].id {
-                        return;
+                        if i == PHASES - 1 {
+                            return; // exit the loop phase entirely
+                        } else {
+                            break; // break out of the for loop to restart from the first phase
+                        }
                     }
                 }
             }
