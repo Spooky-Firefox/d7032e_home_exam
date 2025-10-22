@@ -13,10 +13,7 @@ use crate::{
 use color_eyre::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
-    Frame,
-    layout::{Constraint, Layout, Rect},
-    style::{Style, Stylize},
-    widgets::{Block, List, ListState, Paragraph},
+    layout::{Constraint, Layout, Rect}, style::{Style, Stylize}, widgets::{Block, List, ListState, Paragraph, Table}, Frame
 };
 
 pub struct PlayerTUI {
@@ -212,6 +209,7 @@ impl PlayerTUIThread {
     }
 
     fn render_board(&mut self, cards: &cards::Owner) -> ratatui::widgets::Paragraph {
+
         // query the world for cards owned by the given owner
         let world = self.state.lock().unwrap();
         let mut q = world.query::<(&cards::Card, &cards::Position, &cards::Owner, Option<&ActivationDice>, Option<&ResourceStorage>)>();
@@ -248,11 +246,10 @@ impl PlayerTUIThread {
             let board_y = (y + 2) as usize;
             board[board_y][board_x] = name;
         }
-
         // convert to sting for paragraph
         let board_str: String = board
             .map(|y| 
-                y.map(|x| format!("{:10}", x)).join(" | ")
+                y.map(|x| format!("{:20}", x)).join(" | ")
             )
             .into_iter()
             .collect::<Vec<_>>()
@@ -297,10 +294,10 @@ impl PlayerTUIThread {
         )
         .split(layout[0]);
 
-        let player_board_block = self.render_board(&cards::Owner::Player1).block(Block::bordered().title("Player Board"));
+        let player_board_block = self.render_board(&cards::Owner::Player1).block(Block::bordered().title("Player Board")).alignment(ratatui::layout::Alignment::Center);
         f.render_widget(player_board_block, vert[0]);
 
-        let opponent_board_block = self.render_board(&cards::Owner::Player2).block(Block::bordered().title("Opponent Board"));
+        let opponent_board_block = self.render_board(&cards::Owner::Player2).block(Block::bordered().title("Opponent Board")).alignment(ratatui::layout::Alignment::Center);
         f.render_widget(opponent_board_block, vert[1]);
         {
             let mut world = self.state.lock().unwrap();

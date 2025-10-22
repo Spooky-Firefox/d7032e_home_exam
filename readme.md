@@ -4,6 +4,8 @@ This is the home exam in the course d7032e at LTU
 
 As our examiner said, AI is encouraged for this project due to time constraints and industry movement. Therefore, this project is also a learning moment for me, as I have never used AI before to write code—I have only used it for help with grammar and spelling.
 
+Direct answer to the questions can be found in answer.md
+
 <!-- cspell:ignore Vajb -->
 ## Analysis of Mr. VajbCruncher ai generated code
 
@@ -81,23 +83,6 @@ another monolith with 650 lines
 
 - the card class contains a large amount of if else
 
-### Question a
-
-#### failure to met requirements
-
-1. The requiremnt are two remote or one local + one remote, the code implemets one local + bot or one local + remote, is this not what the requirements was.
-2. pass by glancing at the code
-3. in the video you are shown to be able to chose each card you draw, but my interpratation is that you draw 3 cards from the same stack
-4. 
-5. 
-
-#### Testing
-
-Some of the functions would be easy to test, souch as the extract cardsByAtribute
-as they have no side effects
-
-but functions like applyEffect have tight integration with current state (given by the active player argument) making it harder to test, as well as reason about, this is not imporved by the fact the function is 300 rows. another thing to mention is that it interects with players feild directly again making it harder to reason about, another thing is that Player is a class so its hard to subsitute with a dummy when testing, or thesting i recomend braking up this function to smaler pices.
-
 ## Design choices for the rust version
 
 ### Game loop
@@ -106,23 +91,23 @@ but functions like applyEffect have tight integration with current state (given 
 sequenceDiagram
     participant Game
     participant Phase
-    participant EventManager
+    participant Phase2
     participant DecisionChannel
-    participant State
     participant Server
 
-    Game->>Phase: startPhase()
+    Game->>Phase: Evaluate()
     Note right of Phase: Each phase may loop until completion
     loop Phase Loop
-        Phase->>EventManager: beginPhase(base_events, pa)
-        EventManager->>DecisionChannel: send_possible_player_actions(&pa[])
-        DecisionChannel->>EventManager: receive_input(pa)
-        EventManager->>Server: state_update(pa)
-        EventManager->>EventManager: process player action
-        EventManager->>State: state_update(events[])
-        EventManager->>Phase: loop (phase continues)
+        Phase->>Phase2: Evaluate()
+        Note right of Phase: A phase might contain other phases
+        Phase2->>DecisionChannel: send_possible_player_actions(&pa[])
+        Note right of DecisionChannel: The decisionChannel might be a wrapper around two object one which asks a remote server
+        DecisionChannel->>Server: Ask remote player
+        Server->>DecisionChannel: response from remote player
+        DecisionChannel->>Phase2: receive_input(pa)
+        Phase2->>Phase: 
     end
-        Phase->>Game: next_phase
+        Phase->>Game: 
 ```
 
 > **Note:**  
@@ -134,3 +119,176 @@ sequenceDiagram
 ### ECS, storing the game state
 
 Since a requirement is easy extension of features combined with the multitude of cards with different effects, an ECS (Entity Component System) was chosen as the storage for game state.
+
+![ECS image from wikipedia](ECS_Simple_Layout.svg.png)
+
+One could imagine an ECS as similar to a SQL table, where entities are rows and components are columns.
+Each phase can then query and modify the state without needing any advanced knowledge of the
+structure of the data.
+
+For example, in Rust using the `hecs` crate:
+
+```rust
+// Query all entities with a Card and Owner component
+for (entity, (card, owner)) in world.query::<(&Card, &Owner)>().iter() {
+    println!("Entity {:?} owns card: {}", owner, card.name);
+}
+```
+
+A place where this shines is in the production phase: I can query for every card entity that matches the current dice roll and increment its resource value efficiently.
+
+For example, from `production.rs`:
+
+```rust
+// Query all cards with Position, Card, Owner, ActivationDice, and ResourceStorage
+world.query_mut::<(&Position, &Card, &Owner, &ActivationDice, &mut ResourceStorage)>()
+    .into_iter()
+    .filter(|(_, (pos, _, card_owner, act, _))| {
+        **card_owner == owner && matches!(pos, Position::Board(_, _)) && act.0 == roll_result
+    })
+    .for_each(|(_, (_, _, _, _, storage))| {
+        storage.increase();
+    });
+```
+
+#### The position component
+
+When designing how to store a card's position, one could have chosen to use separate components for each possible location (e.g., one for deck position, another for board position, etc.).
+
+However, this approach allows for the possibility of representing an *illegal* state, where a card entity could have multiple position components at once. To avoid this, I decided to sacrifice some modifiability by using only a single position component, implemented as a Rust enum.
+
+```rust
+// From src/cards/cards.rs
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Position {
+    Board(i32, i32),
+    EventStack(u32),
+    DrawStack1(u32),
+    DrawStack2(u32),
+    DrawStack3(u32),
+    DrawStack4(u32),
+}
+```
+
+This design makes illegal states unrepresentable, which is checked at compile time (no nasty runtime errors). As a side effect, this inability to represent illegal states makes the program more robust and modifiable, since it is easier to write error-free code.
+
+#### The Box dyn Action Component
+
+This is not yet implemented—40 hours is not enough for this exam, so the text is written as if it did exist.
+
+Some cards have effects that need to be evaluated. This would be implemented as a component that can be queried and then evaluated dynamically.
+
+For example, you could query all entities with a `Box<dyn ActionComponent>` and call their `eval` method:
+
+```rust
+// Pseudo-code: Query all entities with an ActionComponent and evaluate them
+for (entity, action) in world.query_mut::<&mut Box<dyn ActionComponent>>().iter() {
+    action.eval(entity, &mut world);
+}
+
+// Example: LumberHut action component
+struct LumberHut;
+
+impl ActionComponent for LumberHut {
+    fn eval(&mut self, self_e: Entity, world: &mut World) {
+        let position = world.query_one_mut::<&Position>(self_e).unwrap();
+        // Query all adjacent cards and increase their resource
+        world.query_mut::<(&Position, &Card, &Owner, &mut ResourceStorage)>()
+            .into_iter()
+            .filter(|(_, (pos, _, card_owner, _))| {
+                // Check if card is adjacent to LumberHut
+                is_adjacent(pos, position) && **card_owner == get_owner(self_e, world)
+            })
+            .for_each(|(_, (_, _, _, storage))| {
+                storage.increase();
+            });
+    }
+}
+
+// Helper function (pseudo-code)
+fn is_adjacent(pos1: &Position, pos2: &Position) -> bool {
+    // Implement adjacency logic here
+    true // placeholder
+}
+```
+
+
+#### user_strategy, Deterministic State, and Multiplayer
+
+*Not yet implemented, but design is outlined below.*
+
+To ensure a deterministic game state, all randomness is only queried through the dice components. These dice either use the same seed or communicate with each other, guaranteeing that the game state remains consistent across all clients.
+
+With a deterministic state, the only information that needs to be synchronized between players is their choices. This is achieved by wrapping a local `UserStrategy` and a remote strategy in a single struct. If it is the local player's turn, the wrapper routes decisions to the local strategy and forwards the choice to the remote player. If it is the remote player's turn, the wrapper listens for the choice made by the remote player.
+
+Here is a cleaned-up example:
+
+```rust
+struct RemoteAndLocalWrapper<T: UserStrategy> {
+    send: SocketSend,
+    receive: SocketReceive,
+    local: T,
+}
+
+impl<T: UserStrategy> UserStrategy for RemoteAndLocalWrapper<T> {
+    fn get_user_decision(
+        &self,
+        decisions: Vec<Box<dyn DecisionChoice>>,
+    ) -> Box<dyn DecisionChoice> {
+        // Query the world to determine who has the player token
+        if local_has_player_token() {
+            let decision = self.local.get_user_decision(decisions);
+            self.send.send(decision.clone());
+            decision
+        } else {
+            self.receive.wait()
+        }
+    }
+}
+```
+
+This approach ensures that only player choices are synchronized, while all other game logic remains deterministic and consistent across all clients.
+
+#### Placing Cards
+
+Placing cards is a bit more involved with the ECS solution. To find a valid spot, you need to query for settlements or cities, then check the positions above or below to determine where a card can be placed. Paying the cost is straightforward: you simply query the player entity to deduct the required resources. Since most cards have a low cost, this can be handled with 2–5 multiple choice questions for resource selection.
+
+However, this approach does not scale well for expansions that might make the board larger or introduce cards with higher costs, which could require a large number of multiple choice questions.
+
+Example (pseudo-code):
+
+```rust
+// Find all settlements/cities and collect valid placement choices
+let mut choices = vec![];
+
+for (_entity, (card, position, card_type)) in world.query::<(&Card, &Position, &CardType)>().iter() {
+    if is_settlement_or_city(card_type) {
+        // Check positions above/below for valid placement
+        choices.extend(find_valid_spots(position));
+    }
+}
+
+// Present choices to the user and get their decision
+let selected_spot = user_strategy.get_user_decision(choices);
+```
+
+#### Loading Cards and Game Objects
+
+Due to time constraints, a full implementation was not possible, but the following describes the intended end goal.
+
+With ECS and the systems that operate on it, the design can be considered data-driven. The structure of ECS allows us to load an entity and add the relevant components listed in a data file, such as JSON.
+
+For example, loading cards from a JSON file:
+
+```rust
+let entities: Vec<JsonCardComponent> = serde_json::from_str(include_str!("cards.json")).unwrap();
+for e in entities {
+    
+    let mut entity_builder = EntityBuilder::new();
+    
+    for component in e {
+        entity_builder.add(component)
+    }
+    world.spawn(entity.build());
+}
+```

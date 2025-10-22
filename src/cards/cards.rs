@@ -52,6 +52,35 @@ pub enum ResourceStorage {
     Amount3,
 }
 
+impl ResourceStorage {
+    pub fn increase(&mut self) {
+        *self = match self {
+            ResourceStorage::Amount0 => ResourceStorage::Amount1,
+            ResourceStorage::Amount1 => ResourceStorage::Amount2,
+            ResourceStorage::Amount2 => ResourceStorage::Amount3,
+            ResourceStorage::Amount3 => ResourceStorage::Amount3, // maxed out
+        }
+    }
+
+    pub fn decrease(&mut self) {
+        *self = match self {
+            ResourceStorage::Amount0 => ResourceStorage::Amount0, // min value
+            ResourceStorage::Amount1 => ResourceStorage::Amount0,
+            ResourceStorage::Amount2 => ResourceStorage::Amount1,
+            ResourceStorage::Amount3 => ResourceStorage::Amount2,
+        }
+    }
+
+    pub fn as_u8(&self) -> u8 {
+        match self {
+            ResourceStorage::Amount0 => 0,
+            ResourceStorage::Amount1 => 1,
+            ResourceStorage::Amount2 => 2,
+            ResourceStorage::Amount3 => 3,
+        }
+    }
+}
+
 pub struct Card {
     pub name: String,
     pub description: String,

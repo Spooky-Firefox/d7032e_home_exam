@@ -1,6 +1,6 @@
 use log::{info, trace};
 
-use crate::{cards::cards::{Card, Owner, Position}, common::{Phase, UserStrategy}, game_objects::{active_player_token::ActivePlayerToken, production_dice}, util::query_one_from_world};
+use crate::{cards::cards::{ActivationDice, Card, Owner, Position, ResourceStorage}, common::{Phase, UserStrategy}, game_objects::{active_player_token::ActivePlayerToken, production_dice}, util::query_one_from_world};
 use std::sync::{Arc, Mutex};
 
 pub struct ProductionPhase;
@@ -24,11 +24,13 @@ impl Phase for ProductionPhase {
         let (_, owner) = query_one_from_world::<(&ActivePlayerToken,&Owner)>(&mut world).unwrap();
         let owner = owner.clone();
         // query all cards with have production matching the roll and owner == active player token
-        let matching_cards = world.query_mut::<(&Position,&Card, &Owner)>().into_iter().filter(|(_, (pos, _, card_owner))| {
-            **card_owner == owner && matches!(pos, Position::Board(_, _))
+        world.query_mut::<(&Position,&Card, &Owner,&ActivationDice, &mut ResourceStorage)>().into_iter().filter(|(_, (pos, _, card_owner, act, _))| {
+            **card_owner == owner && matches!(pos, Position::Board(_, _)) && act.0 == roll_result
+        }).for_each(|(_, (_, _, _,_, storage))| {
+            storage.increase();
         });
 
-        info!("cards matching for owner {:?}: {:?}", owner, matching_cards.map(|(_,(_, card,_))| card.name.clone()).collect::<Vec<_>>());
+        
         // - Distribute resources to players based on their regions matching the roll
         // - Consider special cases like gold fields
     }
